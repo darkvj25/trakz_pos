@@ -19,7 +19,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: '*',
     methods: ['GET', 'POST'],
   },
 });
@@ -27,7 +27,10 @@ const io = new Server(server, {
 // Security & Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow non-browser requests (mobile apps, postman, curl) & all web domains (Vercel, localhost, etc.)
+    return callback(null, true);
+  },
   credentials: true,
 }));
 
