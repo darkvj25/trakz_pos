@@ -21,14 +21,71 @@ const getNativeBluetoothPrinter = () => {
   return cap?.Plugins?.BluetoothPrinter || null;
 };
 
-// Common thermal printer BLE service UUIDs
+// Comprehensive thermal printer BLE service UUIDs (HM-10, Xprinter, GOOJPRT, Rongta, ZJiang, POS-58/80, Bixolon, SPP over BLE)
 const BLE_PRINTER_SERVICES = [
+  // Most Common Chinese Thermal Printer BLE Module (HM-10 / CC2541 / POS-58 / PT-210 / MPT-II)
+  '0000ffe0-0000-1000-8000-00805f9b34fb',
+  '0000ffe1-0000-1000-8000-00805f9b34fb',
+  'ffe0',
+  'ffe1',
+  0xffe0,
+  0xffe1,
+
+  // Standard Bluetooth SIG Thermal Printer Service
   '000018f0-0000-1000-8000-00805f9b34fb',
+  '18f0',
+  0x18f0,
+
+  // Xprinter / POS58 Custom BLE Service
   '0000e0ff-0000-1000-8000-00805f9b34fb',
+  'e0ff',
+  0xe0ff,
+
+  // ISSC Transparent Service (Microchip / Rongta / MPT-II)
   '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-  '00001101-0000-1000-8000-00805f9b34fb',
+  '49535343-1e4d-4ba9-b72b-2d9a4f4ad549',
+
+  // ZJiang / Milestone / POS-80 Custom Service
   '0000ff00-0000-1000-8000-00805f9b34fb',
+  'ff00',
+  0xff00,
+
+  // Serial Port Profile (SPP over BLE / GATT)
+  '00001101-0000-1000-8000-00805f9b34fb',
+  '1101',
+  0x1101,
+
+  // Additional POS Thermal BLE Services (Bixolon / Star / Epson / Custom)
   '0000af00-0000-1000-8000-00805f9b34fb',
+  'af00',
+  0xaf00,
+  '0000ffff-0000-1000-8000-00805f9b34fb',
+  'ffff',
+  0xffff,
+  '0000f000-0000-1000-8000-00805f9b34fb',
+  'f000',
+  0xf000,
+  '0000abf0-0000-1000-8000-00805f9b34fb',
+  'abf0',
+  0xabf0,
+  '0000cc00-0000-1000-8000-00805f9b34fb',
+  'cc00',
+  0xcc00,
+  '0000ae30-0000-1000-8000-00805f9b34fb',
+  'ae30',
+  0xae30,
+  '00004953-0000-1000-8000-00805f9b34fb',
+
+  // Generic Access / Device Info fallback services
+  '00001800-0000-1000-8000-00805f9b34fb',
+  '00001801-0000-1000-8000-00805f9b34fb',
+  '0000180a-0000-1000-8000-00805f9b34fb',
+  '1800',
+  '1801',
+  '180a',
+  0x1800,
+  0x1801,
+  0x180a,
 ];
 
 class PrinterService {
@@ -379,7 +436,7 @@ class PrinterService {
           const service = await server.getPrimaryService(serviceUuid);
           const characteristics = await service.getCharacteristics();
           characteristic = characteristics.find(
-            (c) => c.properties.write || c.properties.writeWithoutResponse
+            (c) => c?.properties?.write || c?.properties?.writeWithoutResponse || c?.properties?.authenticatedSignedWrites
           );
           if (characteristic) break;
         } catch (err) {}
@@ -389,17 +446,19 @@ class PrinterService {
         try {
           const services = await server.getPrimaryServices();
           for (const service of services) {
-            const characteristics = await service.getCharacteristics();
-            characteristic = characteristics.find(
-              (c) => c.properties.write || c.properties.writeWithoutResponse
-            );
-            if (characteristic) break;
+            try {
+              const characteristics = await service.getCharacteristics();
+              characteristic = characteristics.find(
+                (c) => c?.properties?.write || c?.properties?.writeWithoutResponse || c?.properties?.authenticatedSignedWrites
+              );
+              if (characteristic) break;
+            } catch (err) {}
           }
         } catch (err) {}
       }
 
       if (!characteristic) {
-        throw new Error('Could not find a writable ESC/POS GATT characteristic on selected Bluetooth device.');
+        throw new Error('Could not find a writable ESC/POS GATT characteristic on selected Bluetooth device. Note: Web Bluetooth requires a BLE (Bluetooth Low Energy) thermal printer. For Classic Bluetooth (SPP) printers, use the TrakZ POS Android App.');
       }
 
       this.bluetoothCharacteristic = characteristic;
