@@ -208,6 +208,24 @@ class PrinterService {
     }
   }
 
+  attachDisconnectListener(device) {
+    if (!device) return;
+    const handleDisconnect = () => {
+      this.bluetoothCharacteristic = null;
+      this.notify();
+    };
+
+    if (typeof device.addEventListener === 'function') {
+      try {
+        device.addEventListener('gattserverdisconnected', handleDisconnect);
+      } catch (e) {
+        console.warn('Failed to attach gattserverdisconnected event listener:', e);
+      }
+    } else if ('ongattserverdisconnected' in device) {
+      device.ongattserverdisconnected = handleDisconnect;
+    }
+  }
+
   /**
    * Automatically attempt auto-reconnecting to previously paired USB or Bluetooth printers
    */
@@ -276,36 +294,35 @@ class PrinterService {
     }
 
     // Web Bluetooth Auto Connect
-    if (this.connectionType === 'bluetooth' && this.isBluetoothSupported() && 'getDevices' in navigator.bluetooth) {
+    if (this.connectionType === 'bluetooth' && this.isBluetoothSupported() && navigator.bluetooth && 'getDevices' in navigator.bluetooth) {
       try {
         const devices = await navigator.bluetooth.getDevices();
         if (devices && devices.length > 0) {
           const device = devices[0];
           this.bluetoothDevice = device;
 
-          device.addEventListener('gattserverdisconnected', () => {
-            this.bluetoothCharacteristic = null;
-            this.notify();
-          });
+          this.attachDisconnectListener(device);
 
-          const server = await device.gatt.connect();
-          let characteristic = null;
+          if (device.gatt) {
+            const server = await device.gatt.connect();
+            let characteristic = null;
 
-          for (const serviceUuid of BLE_PRINTER_SERVICES) {
-            try {
-              const service = await server.getPrimaryService(serviceUuid);
-              const characteristics = await service.getCharacteristics();
-              characteristic = characteristics.find(
-                (c) => c.properties.write || c.properties.writeWithoutResponse
-              );
-              if (characteristic) break;
-            } catch (err) {}
-          }
+            for (const serviceUuid of BLE_PRINTER_SERVICES) {
+              try {
+                const service = await server.getPrimaryService(serviceUuid);
+                const characteristics = await service.getCharacteristics();
+                characteristic = characteristics.find(
+                  (c) => c?.properties?.write || c?.properties?.writeWithoutResponse
+                );
+                if (characteristic) break;
+              } catch (err) {}
+            }
 
-          if (characteristic) {
-            this.bluetoothCharacteristic = characteristic;
-            this.notify();
-            return true;
+            if (characteristic) {
+              this.bluetoothCharacteristic = characteristic;
+              this.notify();
+              return true;
+            }
           }
         }
       } catch (e) {
@@ -348,10 +365,11 @@ class PrinterService {
 
       this.bluetoothDevice = device;
 
-      device.addEventListener('gattserverdisconnected', () => {
-        this.bluetoothCharacteristic = null;
-        this.notify();
-      });
+      this.attachDisconnectListener(device);
+
+      if (!device?.gatt) {
+        throw new Error('Selected Bluetooth device does not support GATT connection.');
+      }
 
       const server = await device.gatt.connect();
       let characteristic = null;
@@ -472,7 +490,7 @@ class PrinterService {
     }
     this.isNativeConnected = false;
 
-    if (this.bluetoothDevice && this.bluetoothDevice.gatt.connected) {
+    if (this.bluetoothDevice && this.bluetoothDevice.gatt?.connected) {
       try {
         this.bluetoothDevice.gatt.disconnect();
       } catch (e) {}
