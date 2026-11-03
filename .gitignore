@@ -39,3 +39,4 @@ backend/prisma/*.db-journal
 
 # Vite
 .vite/
+.neon
