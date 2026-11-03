@@ -1,0 +1,260 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  MERCHANT_ADMIN
+  CASHIER
+}
+
+enum MerchantStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PaymentStatus {
+  PAID
+  PENDING
+  FAILED
+  REFUNDED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  GCASH
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  ONLINE_PAYMENT
+}
+
+enum PaymentTxStatus {
+  SUCCESSFUL
+  PENDING
+  FAILED
+  REFUNDED
+}
+
+enum SyncType {
+  FULL
+  INCREMENTAL
+  MANUAL
+  DEMO_RESET
+  FIRESTORE_PUSH
+}
+
+enum SyncStatus {
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+enum QueueStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ItemCategoryType {
+  FOOD
+  NON_FOOD_RETAIL
+  SERVICE
+  HARDWARE_GROCERY
+}
+
+model User {
+  id           String    @id @default(uuid())
+  merchantId   String?   @map("merchant_id")
+  merchant     Merchant? @relation(fields: [merchantId], references: [id])
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         Role      @default(CASHIER)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Merchant {
+  id                 String         @id @default(uuid())
+  externalMerchantId String         @unique @map("external_merchant_id")
+  merchantName       String         @map("merchant_name")
+  status             MerchantStatus @default(ACTIVE)
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  users    User[]
+  orders   Order[]
+  payments Payment[]
+
+  @@map("merchants")
+}
+
+model Order {
+  id              String        @id @default(uuid())
+  externalOrderId String        @unique @map("external_order_id")
+  merchantId      String        @map("merchant_id")
+  merchant        Merchant      @relation(fields: [merchantId], references: [id])
+  customerName    String        @map("customer_name")
+  orderDate       DateTime      @map("order_date")
+  subtotal        Decimal       @db.Decimal(12, 2)
+  deliveryFee      Decimal       @default(0.00) @map("delivery_fee") @db.Decimal(12, 2)
+  deliveryDistance Decimal?      @map("delivery_distance") @db.Decimal(6, 2)
+  riderPayout      Decimal       @default(0.00) @map("rider_payout") @db.Decimal(12, 2)
+  trakzMargin      Decimal       @default(0.00) @map("trakz_margin") @db.Decimal(12, 2)
+  convenienceFee   Decimal       @default(0.00) @map("convenience_fee") @db.Decimal(12, 2)
+  discount         Decimal       @default(0.00) @db.Decimal(12, 2)
+  totalAmount     Decimal       @map("total_amount") @db.Decimal(12, 2)
+  paymentStatus   PaymentStatus @map("payment_status")
+  orderStatus     OrderStatus   @map("order_status")
+  source          String        @default("TRAKZ_ONPREM_POS")
+  firestoreSynced Boolean       @default(false) @map("firestore_synced")
+  firestoreDocId  String?       @map("firestore_doc_id")
+  syncedAt        DateTime?     @map("synced_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  orderItems OrderItem[]
+  payments   Payment[]
+
+  @@index([orderDate])
+  @@index([paymentStatus])
+  @@index([orderStatus])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                String           @id @default(uuid())
+  orderId           String           @map("order_id")
+  order             Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  externalProductId String?          @map("external_product_id")
+  sku               String?          @map("sku")
+  barcode           String?          @map("barcode")
+  productName       String           @map("product_name")
+  category          ItemCategoryType @default(NON_FOOD_RETAIL)
+  categoryName      String           @default("General Retail") @map("category_name")
+  unit              String           @default("pcs")
+  quantity          Int
+  unitPrice         Decimal          @map("unit_price") @db.Decimal(12, 2)
+  subtotal          Decimal          @db.Decimal(12, 2)
+
+  @@map("order_items")
+}
+
+model Payment {
+  id                String          @id @default(uuid())
+  externalPaymentId String          @unique @map("external_payment_id")
+  orderId           String          @map("order_id")
+  order             Order           @relation(fields: [orderId], references: [id])
+  merchantId        String          @map("merchant_id")
+  merchant          Merchant        @relation(fields: [merchantId], references: [id])
+  paymentMethod     PaymentMethod   @map("payment_method")
+  referenceNumber   String          @map("reference_number")
+  amount            Decimal         @db.Decimal(12, 2)
+  paymentStatus     PaymentTxStatus @map("payment_status")
+  paymentDate       DateTime        @map("payment_date")
+  firestoreSynced   Boolean         @default(false) @map("firestore_synced")
+  syncedAt          DateTime?       @map("synced_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@index([paymentDate])
+  @@index([paymentStatus])
+  @@index([referenceNumber])
+  @@map("payments")
+}
+
+model SyncLog {
+  id               String     @id @default(uuid())
+  syncType         SyncType   @map("sync_type")
+  startedAt        DateTime   @default(now()) @map("started_at")
+  completedAt      DateTime?  @map("completed_at")
+  status           SyncStatus @default(IN_PROGRESS)
+  recordsProcessed Int        @default(0) @map("records_processed")
+  recordsFailed    Int        @default(0) @map("records_failed")
+  errorMessage     String?    @map("error_message")
+
+  @@map("sync_logs")
+}
+
+model SyncQueue {
+  id                  String      @id @default(uuid())
+  operationId         String      @unique @map("operation_id")
+  operationType       String      @map("operation_type")
+  externalReferenceId String      @map("external_reference_id")
+  payload             Json
+  status              QueueStatus @default(PENDING)
+  retryCount          Int         @default(0) @map("retry_count")
+  lastError           String?     @map("last_error")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  @@map("sync_queue")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
+  action      String
+  description String
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id           String   @id @default(uuid())
+  settingKey   String   @unique @map("setting_key")
+  settingValue String   @map("setting_value")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model RiderFeeMatrix {
+  id           String   @id @default(uuid())
+  minKm        Decimal  @map("min_km") @db.Decimal(5, 2)
+  maxKm        Decimal  @map("max_km") @db.Decimal(5, 2)
+  label        String
+  customerFee  Decimal  @map("customer_fee") @db.Decimal(12, 2)
+  riderPayout  Decimal  @map("rider_payout") @db.Decimal(12, 2)
+  trakzMargin  Decimal  @map("trakz_margin") @db.Decimal(12, 2)
+  inclusiveMax Boolean  @default(true) @map("inclusive_max")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("rider_fee_matrices")
+}
+
+model ConvenienceFeeMatrix {
+  id           String   @id @default(uuid())
+  minSubtotal  Decimal  @map("min_subtotal") @db.Decimal(12, 2)
+  maxSubtotal  Decimal? @map("max_subtotal") @db.Decimal(12, 2)
+  label        String
+  fee          Decimal  @db.Decimal(12, 2)
+  inclusiveMax Boolean  @default(true) @map("inclusive_max")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("convenience_fee_matrices")
+}
+
