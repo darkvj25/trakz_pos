@@ -1,9 +1,14 @@
 package com.trakz.pos.plugins
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import android.util.Base64
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
@@ -11,11 +16,23 @@ import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.annotation.Permission
 import java.io.IOException
 import java.io.OutputStream
 import java.util.UUID
 
-@CapacitorPlugin(name = "BluetoothPrinter")
+@CapacitorPlugin(
+    name = "BluetoothPrinter",
+    permissions = [
+        Permission(
+            alias = "bluetooth",
+            strings = [
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN
+            ]
+        )
+    ]
+)
 class BluetoothPrinterPlugin : Plugin() {
 
     private var bluetoothAdapter: BluetoothAdapter? = null
@@ -24,29 +41,43 @@ class BluetoothPrinterPlugin : Plugin() {
     private var connectedDeviceName: String? = null
     private var connectedDeviceAddress: String? = null
 
-    // Standard Serial Port Profile (SPP) UUID for thermal POS printers
+    // Standard Serial Port Profile (SPP) UUID for Bluetooth 2.0 / Classic thermal POS printers
     private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
     override fun load() {
         super.load()
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        getAdapter()
+    }
+
+    private fun getAdapter(): BluetoothAdapter? {
+        if (bluetoothAdapter == null) {
+            val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            bluetoothAdapter = manager?.adapter ?: BluetoothAdapter.getDefaultAdapter()
+        }
+        return bluetoothAdapter
     }
 
     /**
-     * List all paired (bonded) Bluetooth devices on the Android system
+     * List all paired (bonded) Bluetooth 2.0 / Classic devices on the Android system
      */
     @SuppressLint("MissingPermission")
     @PluginMethod
     fun listPairedDevices(call: PluginCall) {
-        val adapter = bluetoothAdapter
-        if (adapter == null || !adapter.isEnabled) {
-            call.reject("Bluetooth is disabled or not available on this Android device.")
+        val adapter = getAdapter()
+        if (adapter == null) {
+            call.reject("Bluetooth hardware is not available on this Android device.")
+            return
+        }
+        if (!adapter.isEnabled) {
+            call.reject("Bluetooth is disabled. Please enable Bluetooth in Android settings.")
             return
         }
 
         try {
             val pairedDevices: Set<BluetoothDevice>? = adapter.bondedDevices
             constListDevices(pairedDevices, call)
+        } catch (e: SecurityException) {
+            call.reject("Bluetooth permission denied on Android 12+. Please grant Bluetooth permission in App Settings.", e)
         } catch (e: Exception) {
             call.reject("Failed to list bonded Bluetooth devices: ${e.localizedMessage}", e)
         }
@@ -57,7 +88,7 @@ class BluetoothPrinterPlugin : Plugin() {
         val deviceList = JSArray()
         pairedDevices?.forEach { device ->
             val devObj = JSObject()
-            devObj.put("name", device.name ?: "Unknown POS Printer")
+            devObj.put("name", device.name ?: "Unknown POS Thermal Printer")
             devObj.put("address", device.address)
             deviceList.put(devObj)
         }
@@ -68,44 +99,58 @@ class BluetoothPrinterPlugin : Plugin() {
     }
 
     /**
-     * Connect natively to a Bluetooth printer using MAC Address
+     * Open system Bluetooth Settings so user can pair Bluetooth 2.0 Classic thermal printers
+     */
+    @PluginMethod
+    fun openBluetoothSettings(call: PluginCall) {
+        try {
+            val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            context.startActivity(intent)
+            val ret = JSObject()
+            ret.put("success", true)
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("Failed to open Bluetooth Settings: ${e.localizedMessage}", e)
+        }
+    }
+
+    /**
+     * Connect natively to a Bluetooth 2.0 / Classic printer via RFCOMM SPP socket
      */
     @SuppressLint("MissingPermission")
     @PluginMethod
     fun connect(call: PluginCall) {
         val address = call.getString("address")
         if (address.isNullOrEmpty()) {
-          call.reject("Printer MAC address parameter is required.")
-          return
+            call.reject("Printer MAC address parameter is required.")
+            return
         }
 
-        val adapter = bluetoothAdapter
+        val adapter = getAdapter()
         if (adapter == null || !adapter.isEnabled) {
-            call.reject("Bluetooth is not enabled.")
+            call.reject("Bluetooth adapter is disabled or unavailable.")
             return
         }
 
         Thread {
             try {
-                // Close existing connection if any
+                // Close existing socket connection if any
                 disconnectInternal()
 
                 val device: BluetoothDevice = adapter.getRemoteDevice(address)
-                var socket: BluetoothSocket? = null
+                var socket: BluetoothSocket? = createSocketWithFallbacks(device)
 
-                try {
-                    socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-                    socket.connect()
-                } catch (e: Exception) {
-                    // Fallback to reflection method if standard RFCOMM connection fails
-                    val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                    socket = m.invoke(device, 1) as BluetoothSocket
-                    socket.connect()
+                if (socket == null) {
+                    call.reject("Could not create RFCOMM Bluetooth 2.0 socket for device $address.")
+                    return@Thread
                 }
+
+                socket.connect()
 
                 bluetoothSocket = socket
                 outputStream = socket.outputStream
-                connectedDeviceName = device.name ?: "Bluetooth Thermal Printer"
+                connectedDeviceName = device.name ?: "Bluetooth 2.0 Thermal Printer"
                 connectedDeviceAddress = address
 
                 val ret = JSObject()
@@ -116,9 +161,30 @@ class BluetoothPrinterPlugin : Plugin() {
 
             } catch (e: Exception) {
                 disconnectInternal()
-                call.reject("Failed to connect to Bluetooth printer ($address): ${e.localizedMessage}", e)
+                call.reject("Failed to connect to Bluetooth 2.0 printer ($address): ${e.localizedMessage}", e)
             }
         }.start()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun createSocketWithFallbacks(device: BluetoothDevice): BluetoothSocket? {
+        // Attempt 1: Standard RFCOMM SPP socket
+        try {
+            return device.createRfcommSocketToServiceRecord(SPP_UUID)
+        } catch (_: Exception) {}
+
+        // Attempt 2: Insecure RFCOMM SPP socket
+        try {
+            return device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
+        } catch (_: Exception) {}
+
+        // Attempt 3: Reflection on channel 1 (legacy Bluetooth 2.0 Classic devices)
+        try {
+            val method = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+            return method.invoke(device, 1) as BluetoothSocket
+        } catch (_: Exception) {}
+
+        return null
     }
 
     /**
@@ -135,7 +201,7 @@ class BluetoothPrinterPlugin : Plugin() {
     }
 
     /**
-     * Send raw ESC/POS bytes (Base64 string or Byte array) directly to printer Output Stream
+     * Send raw ESC/POS bytes directly to Bluetooth 2.0 Classic printer Output Stream with chunking
      */
     @PluginMethod
     fun printEscPos(call: PluginCall) {
@@ -144,13 +210,13 @@ class BluetoothPrinterPlugin : Plugin() {
         val targetAddress = call.getString("address") ?: connectedDeviceAddress
 
         if (targetAddress.isNullOrEmpty() && (outputStream == null || bluetoothSocket == null || !bluetoothSocket!!.isConnected)) {
-            call.reject("Bluetooth printer is not paired or connected (missing MAC address).")
+            call.reject("Bluetooth 2.0 printer is not connected (missing MAC address).")
             return
         }
 
         Thread {
             try {
-                val adapter = bluetoothAdapter
+                val adapter = getAdapter()
                 if (adapter == null || !adapter.isEnabled) {
                     call.reject("Bluetooth adapter is disabled or unavailable.")
                     return@Thread
@@ -161,24 +227,22 @@ class BluetoothPrinterPlugin : Plugin() {
                     if (!targetAddress.isNullOrEmpty()) {
                         disconnectInternal()
                         val device: BluetoothDevice = adapter.getRemoteDevice(targetAddress)
-                        var socket: BluetoothSocket? = null
-                        try {
-                            socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
-                            socket.connect()
-                        } catch (e: Exception) {
-                            val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                            socket = m.invoke(device, 1) as BluetoothSocket
-                            socket.connect()
+                        val socket = createSocketWithFallbacks(device)
+                        socket?.connect()
+
+                        if (socket != null && socket.isConnected) {
+                            bluetoothSocket = socket
+                            outputStream = socket.outputStream
+                            connectedDeviceName = device.name ?: "Bluetooth 2.0 Thermal Printer"
+                            connectedDeviceAddress = targetAddress
                         }
-                        bluetoothSocket = socket
-                        outputStream = socket.outputStream
-                        connectedDeviceName = device.name ?: "Bluetooth Thermal Printer"
-                        connectedDeviceAddress = targetAddress
                     }
                 }
 
-                if (outputStream == null || bluetoothSocket == null || !bluetoothSocket!!.isConnected) {
-                    call.reject("Bluetooth printer is not connected.")
+                val currentStream = outputStream
+                val currentSocket = bluetoothSocket
+                if (currentStream == null || currentSocket == null || !currentSocket.isConnected) {
+                    call.reject("Bluetooth 2.0 printer is disconnected. Please re-connect printer.")
                     return@Thread
                 }
 
@@ -199,8 +263,20 @@ class BluetoothPrinterPlugin : Plugin() {
                     }
                 }
 
-                outputStream?.write(bytes)
-                outputStream?.flush()
+                // Stream in 512-byte chunks with 25ms delay to prevent BT 2.0 buffer overflow on thermal printers
+                val chunkSize = 512
+                var offset = 0
+                while (offset < bytes.size) {
+                    val count = Math.min(chunkSize, bytes.size - offset)
+                    currentStream.write(bytes, offset, count)
+                    currentStream.flush()
+                    offset += count
+                    if (offset < bytes.size) {
+                        try {
+                            Thread.sleep(25)
+                        } catch (_: InterruptedException) {}
+                    }
+                }
 
                 val ret = JSObject()
                 ret.put("success", true)
@@ -209,13 +285,13 @@ class BluetoothPrinterPlugin : Plugin() {
 
             } catch (e: Exception) {
                 disconnectInternal()
-                call.reject("Error transmitting ESC/POS bytes to printer: ${e.localizedMessage}", e)
+                call.reject("Error transmitting ESC/POS bytes to Bluetooth 2.0 printer: ${e.localizedMessage}", e)
             }
         }.start()
     }
 
     /**
-     * Disconnect active Bluetooth socket
+     * Disconnect active Bluetooth 2.0 socket
      */
     @PluginMethod
     fun disconnect(call: PluginCall) {

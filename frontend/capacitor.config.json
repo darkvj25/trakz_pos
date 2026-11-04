@@ -3,6 +3,8 @@
   "appName": "TRAKZ PRO POS",
   "webDir": "dist",
   "server": {
+    "url": "https://trakz-pos.vercel.app",
+    "cleartext": true,
     "androidScheme": "https"
   },
   "plugins": {

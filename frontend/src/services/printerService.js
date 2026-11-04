@@ -173,7 +173,7 @@ class PrinterService {
 
   getDeviceName() {
     if (this.connectionType === 'native' || (this.connectionType === 'bluetooth' && this.isCapacitorNative())) {
-      return this.nativeDeviceName || 'Native Android Bluetooth Printer';
+      return this.nativeDeviceName || 'Native BT 2.0 Classic Thermal Printer';
     }
     if (this.connectionType === 'bluetooth' && this.bluetoothDevice) {
       return this.bluetoothDevice.name || 'Bluetooth POS Thermal Printer';
@@ -222,7 +222,7 @@ class PrinterService {
   }
 
   /**
-   * Native Capacitor Android Bluetooth Listing
+   * Native Capacitor Android Bluetooth Listing (BT 2.0 / Classic)
    */
   async listNativePairedDevices() {
     if (!this.isCapacitorNative()) {
@@ -240,15 +240,32 @@ class PrinterService {
   }
 
   /**
-   * Native Capacitor Android Connect
+   * Launch Android System Bluetooth Settings
+   */
+  async openNativeBluetoothSettings() {
+    if (!this.isCapacitorNative()) return false;
+    try {
+      const plugin = getNativeBluetoothPrinter();
+      if (plugin?.openBluetoothSettings) {
+        await plugin.openBluetoothSettings();
+        return true;
+      }
+    } catch (e) {
+      console.warn('Failed to open Android Bluetooth Settings:', e);
+    }
+    return false;
+  }
+
+  /**
+   * Native Capacitor Android Connect (BT 2.0 Classic SPP)
    */
   async pairNativeBluetooth(address, deviceName) {
     if (!this.isCapacitorNative()) {
-      throw new Error('Native Bluetooth plugin is only available on Android native app.');
+      throw new Error('Native Bluetooth 2.0 Classic plugin is only available on the TrakZ POS Android App.');
     }
     try {
       const plugin = getNativeBluetoothPrinter();
-      if (!plugin) throw new Error('BluetoothPrinter plugin not loaded on native platform.');
+      if (!plugin) throw new Error('BluetoothPrinter native plugin is not available.');
 
       const res = await plugin.connect({ address });
       this.nativeMacAddress = address;
@@ -289,7 +306,7 @@ class PrinterService {
   async autoConnect() {
     if (this.getStatus().isConnected) return true;
 
-    // Native Capacitor Android Re-connect
+    // Native Capacitor Android Re-connect (BT 2.0 Classic)
     if (this.isCapacitorNative() && this.nativeMacAddress) {
       try {
         const plugin = getNativeBluetoothPrinter();
@@ -306,7 +323,7 @@ class PrinterService {
           return true;
         }
       } catch (e) {
-        console.warn('Native Bluetooth auto-connect failed:', e);
+        console.warn('Native Bluetooth 2.0 auto-connect failed:', e);
       }
     }
 
@@ -350,7 +367,7 @@ class PrinterService {
       }
     }
 
-    // Web Bluetooth Auto Connect
+    // Web Bluetooth Auto Connect (BLE)
     if (this.connectionType === 'bluetooth' && this.isBluetoothSupported() && navigator.bluetooth && 'getDevices' in navigator.bluetooth) {
       try {
         const devices = await navigator.bluetooth.getDevices();
@@ -399,19 +416,21 @@ class PrinterService {
   }
 
   /**
-   * Web Bluetooth Pairing and Connection
+   * Bluetooth Pairing and Connection (BT 2.0 Classic Native or BLE Web)
    */
   async pairBluetooth() {
     if (this.isCapacitorNative()) {
       const paired = await this.listNativePairedDevices();
       if (paired && paired.length > 0) {
-        return await this.pairNativeBluetooth(paired[0].address, paired[0].name);
+        const selected = paired.find((d) => d.address === this.nativeMacAddress) || paired[0];
+        return await this.pairNativeBluetooth(selected.address, selected.name);
       }
-      throw new Error('No paired Bluetooth printers found in Android Bluetooth Settings.');
+      await this.openNativeBluetoothSettings();
+      throw new Error('No paired Bluetooth 2.0 thermal printers found in Android Bluetooth Settings. Please pair your Bluetooth printer in Android settings first.');
     }
 
     if (!this.isBluetoothSupported()) {
-      throw new Error('Web Bluetooth is not supported in this browser or context.');
+      throw new Error('Web Bluetooth is not supported in this browser.');
     }
 
     try {
@@ -458,7 +477,7 @@ class PrinterService {
       }
 
       if (!characteristic) {
-        throw new Error('Could not find a writable ESC/POS GATT characteristic on selected Bluetooth device. Note: Web Bluetooth requires a BLE (Bluetooth Low Energy) thermal printer. For Classic Bluetooth (SPP) printers, use the TrakZ POS Android App.');
+        throw new Error('Could not find a writable ESC/POS GATT characteristic. Note: Web Bluetooth API in browser only supports BLE (Bluetooth 5.0). For Bluetooth 2.0 Classic thermal printers (e.g. POS-58, POS-80, PT-210), please use the TrakZ POS Android App.');
       }
 
       this.bluetoothCharacteristic = characteristic;
@@ -482,7 +501,7 @@ class PrinterService {
    */
   async pairUsb() {
     if (!this.isUsbSupported()) {
-      throw new Error('Web USB is not supported in this browser or context.');
+      throw new Error('Web USB is not supported in this browser.');
     }
 
     try {
@@ -578,20 +597,23 @@ class PrinterService {
   async writeBytes(bytes) {
     const isReady = await this.ensureConnected();
 
-    // Native Capacitor Android Stream
+    // Native Capacitor Android Stream (Bluetooth 2.0 / Classic SPP)
     if (this.connectionType === 'native' || (this.isCapacitorNative() && this.connectionType === 'bluetooth')) {
       if (!this.nativeMacAddress) {
-        throw new Error('Native Bluetooth printer is not paired. Please select and pair printer in Settings.');
+        throw new Error('Native Bluetooth 2.0 printer is not paired. Please select and connect a printer in Settings.');
       }
       const plugin = getNativeBluetoothPrinter();
       if (!plugin) {
         throw new Error('Native BluetoothPrinter plugin not available.');
       }
-      // Convert Uint8Array bytes to Base64
+
+      // Safe Uint8Array chunked conversion to Base64 (avoids stack overflow)
       let binary = '';
-      const len = bytes.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
+      const len = bytes.byteLength || bytes.length;
+      const chunkSize = 8192;
+      for (let i = 0; i < len; i += chunkSize) {
+        const chunk = bytes.subarray ? bytes.subarray(i, i + chunkSize) : bytes.slice(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk);
       }
       const base64Data = btoa(binary);
 
@@ -601,7 +623,7 @@ class PrinterService {
       return true;
     }
 
-    // Web Bluetooth Stream
+    // Web Bluetooth Stream (BLE)
     if (this.connectionType === 'bluetooth') {
       if (!isReady || !this.bluetoothCharacteristic || !this.bluetoothDevice?.gatt?.connected) {
         const reconnected = await this.autoConnect();

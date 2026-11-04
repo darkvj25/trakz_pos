@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { printerService } from '../../services/printerService';
-import { Printer, Bluetooth, Usb, CheckCircle2, AlertTriangle, RefreshCw, XCircle, FileText, Smartphone } from 'lucide-react';
+import { Printer, Bluetooth, Usb, CheckCircle2, AlertTriangle, RefreshCw, XCircle, FileText, Smartphone, Settings, ExternalLink } from 'lucide-react';
 import { NotificationToast } from '../common/NotificationToast';
 
 export const PrinterSettings = () => {
@@ -28,18 +28,26 @@ export const PrinterSettings = () => {
     }
   };
 
+  const handleOpenBluetoothSettings = async () => {
+    try {
+      await printerService.openNativeBluetoothSettings();
+    } catch (e) {
+      setToast({ message: 'Could not open Android Bluetooth Settings automatically.', type: 'error' });
+    }
+  };
+
   const handlePairBluetooth = async () => {
     setLoading(true);
     try {
       const res = await printerService.pairBluetooth();
       setToast({
-        message: `Successfully paired Bluetooth printer: ${res.deviceName}`,
+        message: `Successfully connected Bluetooth printer: ${res.deviceName}`,
         type: 'success',
       });
     } catch (err) {
       if (err.name !== 'NotFoundError') {
         setToast({
-          message: err.message || 'Failed to pair Bluetooth printer.',
+          message: err.message || 'Failed to connect Bluetooth printer.',
           type: 'error',
         });
       }
@@ -53,12 +61,12 @@ export const PrinterSettings = () => {
     try {
       const res = await printerService.pairNativeBluetooth(device.address, device.name);
       setToast({
-        message: `Connected natively to ${res.deviceName}`,
+        message: `Connected via BT 2.0 Classic Native socket to ${res.deviceName}`,
         type: 'success',
       });
     } catch (err) {
       setToast({
-        message: err.message || 'Failed to connect native Bluetooth device.',
+        message: err.message || 'Failed to connect Bluetooth 2.0 Classic device.',
         type: 'error',
       });
     } finally {
@@ -121,14 +129,18 @@ export const PrinterSettings = () => {
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               Thermal POS Printer & ESC/POS Setup
-              {status.isNative && (
+              {status.isNative ? (
                 <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                  ANDROID NATIVE (CAPACITOR)
+                  ANDROID NATIVE (BT 2.0 CLASSIC & BLE)
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  WEB BROWSER MODE
                 </span>
               )}
             </h3>
             <p className="text-xs text-slate-500 font-medium">
-              Configure Bluetooth, Web USB, or Browser dialog printing formats for sales receipts.
+              Configure Bluetooth 2.0 Classic / BLE, Web USB, or Browser printing formats for receipts.
             </p>
           </div>
         </div>
@@ -176,8 +188,8 @@ export const PrinterSettings = () => {
           </div>
           <p className="text-xs text-slate-500">
             {status.isNative
-              ? 'Native Android Bluetooth socket printer pairing under Android Kotlin package.'
-              : 'Wireless printing to Bluetooth thermal receipt printers via Web Bluetooth API.'}
+              ? 'Native Bluetooth 2.0 Classic (SPP/RFCOMM) & BLE thermal printer connection.'
+              : 'Wireless thermal receipt printing via Web Bluetooth API (BLE 5.0).'}
           </p>
           {!status.isBluetoothSupported && !status.isNative && (
             <p className="mt-2 text-[11px] text-rose-500 font-semibold flex items-center gap-1">
@@ -241,46 +253,93 @@ export const PrinterSettings = () => {
         </div>
       </div>
 
-      {/* Native Paired Devices List for Android */}
+      {/* Bluetooth 2.0 Classic Guidance Banner for Web Browser users */}
+      {!status.isNative && (
+        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+          <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
+            <Bluetooth size={16} className="text-amber-600 shrink-0" />
+            Bluetooth 2.0 Classic vs Web Bluetooth Note:
+          </div>
+          <p className="text-[11px] leading-relaxed">
+            Web Bluetooth API in Chrome only supports <strong>Bluetooth 5.0 / BLE (Bluetooth Low Energy)</strong>.
+            Thermal receipt printers that use <strong>Bluetooth 2.0 Classic (SPP/RFCOMM)</strong> (e.g. POS-58, POS-80, PT-210) require the <strong>TrakZ POS Native Android App</strong> to connect.
+          </p>
+        </div>
+      )}
+
+      {/* Native Paired Devices List for Android Native (BT 2.0 Classic & BLE) */}
       {status.isNative && (
         <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <Smartphone size={16} className="text-blue-500" />
-              Bonded Android Bluetooth Devices
+              Bonded Android Bluetooth 2.0 / Classic Printers
             </h4>
-            <button
-              onClick={loadNativeDevices}
-              className="text-xs font-semibold text-[#0786C5] hover:underline flex items-center gap-1"
-            >
-              <RefreshCw size={12} /> Refresh Devices
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleOpenBluetoothSettings}
+                className="text-xs font-bold text-[#0786C5] hover:underline flex items-center gap-1"
+              >
+                <Settings size={12} /> Android Bluetooth Settings
+              </button>
+              <button
+                onClick={loadNativeDevices}
+                className="text-xs font-semibold text-[#0786C5] hover:underline flex items-center gap-1"
+              >
+                <RefreshCw size={12} /> Refresh
+              </button>
+            </div>
           </div>
 
           {nativeDevices.length === 0 ? (
-            <p className="text-xs text-slate-500 italic">
-              No paired Bluetooth devices found in Android Settings. Pair your thermal printer in Android Bluetooth Settings first.
-            </p>
+            <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 space-y-2">
+              <p className="italic">
+                No paired Bluetooth devices found on this Android device.
+              </p>
+              <p className="text-[11px]">
+                To connect a Bluetooth 2.0 Classic printer (e.g. POS-58 / POS-80 / PT-210), pair it in Android Bluetooth Settings first, then tap <strong>Refresh</strong> above.
+              </p>
+              <button
+                onClick={handleOpenBluetoothSettings}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0786C5] hover:bg-sky-600 transition-colors"
+              >
+                <ExternalLink size={12} /> Open Android Bluetooth Settings
+              </button>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {nativeDevices.map((dev) => (
-                <div
-                  key={dev.address}
-                  className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs"
-                >
-                  <div>
-                    <p className="font-bold text-slate-800 dark:text-slate-200">{dev.name}</p>
-                    <p className="text-[10px] text-slate-400 font-mono">{dev.address}</p>
-                  </div>
-                  <button
-                    onClick={() => handlePairNativeDevice(dev)}
-                    disabled={loading}
-                    className="px-2.5 py-1 rounded-md text-[11px] font-bold text-white bg-[#0786C5] hover:bg-sky-600 transition-colors"
+              {nativeDevices.map((dev) => {
+                const isSelected = status.deviceName?.includes(dev.name) || status.deviceName?.includes(dev.address);
+                return (
+                  <div
+                    key={dev.address}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all text-xs ${
+                      isSelected
+                        ? 'border-[#0786C5] bg-sky-50/60 dark:bg-sky-950/40 ring-1 ring-[#0786C5]'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                    }`}
                   >
-                    Connect
-                  </button>
-                </div>
-              ))}
+                    <div>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        {dev.name}
+                        {isSelected && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-mono">{dev.address}</p>
+                    </div>
+                    <button
+                      onClick={() => handlePairNativeDevice(dev)}
+                      disabled={loading}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold text-white transition-colors ${
+                        isSelected
+                          ? 'bg-emerald-600 hover:bg-emerald-700'
+                          : 'bg-[#0786C5] hover:bg-sky-600'
+                      }`}
+                    >
+                      {isSelected ? 'Connected' : 'Connect SPP'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -326,7 +385,7 @@ export const PrinterSettings = () => {
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors disabled:opacity-50"
             >
               {loading ? <RefreshCw size={14} className="animate-spin" /> : <Bluetooth size={14} />}
-              Pair Bluetooth Printer
+              Pair Web Bluetooth Device
             </button>
           )}
 
