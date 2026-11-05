@@ -9,7 +9,7 @@ export const DEFAULT_RECEIPT_CONFIG = {
   minNumber: '26032515372705917',
   headerTitle: 'SALES INVOICE',
   subHeaderTitle: 'CUSTOMER COPY',
-  footerLine1: 'POWERED BY TRAKZ POS SYSTEM',
+  footerLine1: 'POWERED BY TRAKZ SOFTWARE DEVELOPMENT CORP.',
   footerLine2: 'THANK YOU AND PLEASE COME AGAIN!',
   customNotice: 'Items non-refundable after 7 days. Please present receipt for exchange.',
 };

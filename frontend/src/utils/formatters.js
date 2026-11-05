@@ -14,7 +14,7 @@ export const formatPHP = (amount) => {
 
 /**
  * Formats date string to Asia/Manila display format
- * Example: formatDate("2026-03-29T10:00:00Z") -> "Mar 29, 2026 06:00 PM"
+ * Example: formatDate("2026-11-03T19:52:00Z") -> "11/03/2026 19:52"
  */
 export const formatDate = (dateString, includeTime = true) => {
   if (!dateString) return 'N/A';
@@ -24,12 +24,12 @@ export const formatDate = (dateString, includeTime = true) => {
   const options = {
     timeZone: 'Asia/Manila',
     year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    ...(includeTime && { hour: '2-digit', minute: '2-digit', hour12: true }),
+    month: '2-digit',
+    day: '2-digit',
+    ...(includeTime && { hour: '2-digit', minute: '2-digit', hour12: false }),
   };
 
-  return new Intl.DateTimeFormat('en-PH', options).format(date);
+  return new Intl.DateTimeFormat('en-PH', options).format(date).replace(',', '');
 };
 
 /**

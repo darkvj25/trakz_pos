@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { printerService } from '../../services/printerService';
-import { Bluetooth, Usb, RefreshCw, Printer, CheckCircle2, FileText, Sliders } from 'lucide-react';
+import { Bluetooth, Usb, RefreshCw, Printer, CheckCircle2, Sliders } from 'lucide-react';
 import { NotificationToast } from '../common/NotificationToast';
-import { ReceiptSettings } from './ReceiptSettings';
 
 export const PrinterSettings = () => {
-  const [activeTab, setActiveTab] = useState('config'); // 'config' | 'modify'
   const [status, setStatus] = useState(printerService.getStatus());
   const [loading, setLoading] = useState(false);
   const [nativeDevices, setNativeDevices] = useState([]);
@@ -137,40 +135,13 @@ export const PrinterSettings = () => {
               Printer Configuration & Hardware Setup
             </h3>
             <p className="text-xs text-slate-500 font-medium">
-              Configure Web Bluetooth, Web USB, or Android Native thermal printers and receipt formats.
+              Configure Web Bluetooth, Web USB, or Android Native thermal printers.
             </p>
           </div>
         </div>
-
-        {/* Sub-tabs: Config | Modify */}
-        <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold self-start sm:self-auto">
-          <button
-            onClick={() => setActiveTab('config')}
-            className={`px-4 py-2 rounded-lg transition-all ${
-              activeTab === 'config'
-                ? 'bg-white dark:bg-slate-900 text-[#0786C5] dark:text-sky-400 shadow-sm font-extrabold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Config
-          </button>
-          <button
-            onClick={() => setActiveTab('modify')}
-            className={`px-4 py-2 rounded-lg transition-all ${
-              activeTab === 'modify'
-                ? 'bg-white dark:bg-slate-900 text-[#0786C5] dark:text-sky-400 shadow-sm font-extrabold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Modify
-          </button>
-        </div>
       </div>
 
-      {activeTab === 'modify' ? (
-        <ReceiptSettings />
-      ) : (
-        <div className="space-y-6 animate-in fade-in duration-150">
+      <div className="space-y-6 animate-in fade-in duration-150">
           {/* Row 1: Enable Thermal Printing Toggle */}
           <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between">
             <div>
@@ -349,7 +320,6 @@ export const PrinterSettings = () => {
             </div>
           )}
         </div>
-      )}
 
       {toast && <NotificationToast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

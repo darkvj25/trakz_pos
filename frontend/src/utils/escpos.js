@@ -146,6 +146,8 @@ export const generateReceiptEscPosBytes = (order, options = {}) => {
   const totalAmount = parseFloat(order.totalAmount || 0);
   const subtotal = parseFloat(order.subtotal || totalAmount);
   const deliveryFee = parseFloat(order.deliveryFee || 0);
+  const convenienceFee = parseFloat(order.convenienceFee || 0);
+  const discount = parseFloat(order.discount || 0);
 
   const vatableSales = totalAmount > 0 ? (totalAmount / 1.12).toFixed(2) : '0.00';
   const vatAmount = totalAmount > 0 ? (totalAmount - parseFloat(vatableSales)).toFixed(2) : '0.00';
@@ -160,9 +162,31 @@ export const generateReceiptEscPosBytes = (order, options = {}) => {
   const formatDateStr = (dateStr) => {
     try {
       const d = dateStr ? new Date(dateStr) : new Date();
-      return `${d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+      return new Intl.DateTimeFormat('en-PH', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(d).replace(',', '');
     } catch {
       return dateStr || '';
+    }
+  };
+
+  const formatStartTimeStr = (dateStr) => {
+    try {
+      const d = dateStr ? new Date(dateStr) : new Date();
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(d);
+    } catch {
+      return '';
     }
   };
 
@@ -222,6 +246,14 @@ export const generateReceiptEscPosBytes = (order, options = {}) => {
     builder.line(formatTwoColumn('1 DELIVERY FEE', `${deliveryFee.toFixed(2)}V`, width));
   }
 
+  if (convenienceFee > 0) {
+    builder.line(formatTwoColumn('1 CONVENIENCE FEE', `${convenienceFee.toFixed(2)}V`, width));
+  }
+
+  if (discount > 0) {
+    builder.line(formatTwoColumn('LESS: DISCOUNT', `-${discount.toFixed(2)}`, width));
+  }
+
   builder
     .separator('-', width)
     .bold(true)
@@ -241,7 +273,7 @@ export const generateReceiptEscPosBytes = (order, options = {}) => {
     .bold(true)
     .line(`Order #${order.externalOrderId}`)
     .bold(false)
-    .line(`Start time: ${new Date(order.orderDate || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`)
+    .line(`Start time: ${formatStartTimeStr(order.orderDate)}`)
     .line(`Name: ${order.customerName || 'N/A'}`)
     .line(formatTwoColumn('Address:', 'Grid: 0', width))
     .line('Not applicable')

@@ -129,6 +129,14 @@ export const ThermalReceipt = ({ order }) => {
               <span>{convenienceFee.toFixed(2)}V</span>
             </div>
           )}
+
+          {/* Discount line if present */}
+          {discount > 0 && (
+            <div className="flex justify-between font-bold">
+              <span className="uppercase">LESS: DISCOUNT</span>
+              <span>-{discount.toFixed(2)}</span>
+            </div>
+          )}
         </div>
 
         {/* Items Count & Subtotal Line */}
@@ -180,7 +188,7 @@ export const ThermalReceipt = ({ order }) => {
         {/* TRAKZ Order Metadata */}
         <div className="space-y-0.5 text-[10px] uppercase">
           <p className="font-bold">Order #{order.externalOrderId}</p>
-          <p>Start time: {new Date(order.orderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}</p>
+          <p>Start time: {new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(order.orderDate))}</p>
           <p>Name: {order.customerName}</p>
           <div className="flex justify-between">
             <span>Address:</span>

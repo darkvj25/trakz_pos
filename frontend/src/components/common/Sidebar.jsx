@@ -86,10 +86,10 @@ export const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobile
           <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-[11px] text-slate-400 dark:text-slate-500 space-y-1">
             <div className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-300">
               <ShieldCheck size={14} className="text-[#0786C5]" />
-              <span>TrakZ Software Dev Corp</span>
+              <span className="truncate" title="TrakZ Software Development Corporation">TrakZ Software Development Corporation</span>
             </div>
             <p>SEC: 2026080265253-03</p>
-            <p>BIR TIN: 011-019-610</p>
+            <p>BIR TIN: 011-019-610-000</p>
           </div>
         )}
       </aside>

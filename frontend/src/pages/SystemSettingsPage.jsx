@@ -11,7 +11,6 @@ import {
   History,
   RotateCcw,
   Printer,
-  FileText,
   Sliders,
   CheckCircle2,
   Activity,
@@ -20,10 +19,9 @@ import {
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { NotificationToast } from '../components/common/NotificationToast';
 import { PrinterSettings } from '../components/settings/PrinterSettings';
-import { ReceiptSettings } from '../components/settings/ReceiptSettings';
 
 export const SystemSettingsPage = ({ isOnline, isSyncing, triggerSync }) => {
-  const [activeTab, setActiveTab] = useState('printer'); // 'printer' | 'receipt' | 'sync'
+  const [activeTab, setActiveTab] = useState('printer'); // 'printer' | 'sync'
   const [syncHistory, setSyncHistory] = useState([]);
   const [systemStatus, setSystemStatus] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -84,7 +82,7 @@ export const SystemSettingsPage = ({ isOnline, isSyncing, triggerSync }) => {
             <h2 className="text-lg font-extrabold tracking-tight">System & Hardware Configuration</h2>
           </div>
           <p className="text-xs text-slate-300 font-medium max-w-xl">
-            Configure thermal receipt printers, customize customer invoice descriptions, and monitor local database synchronization.
+            Configure thermal receipt printers and monitor local database synchronization.
           </p>
         </div>
       </div>
@@ -102,19 +100,6 @@ export const SystemSettingsPage = ({ isOnline, isSyncing, triggerSync }) => {
           <Printer size={16} />
           <span className="hidden sm:inline">Printer & ESC/POS Setup</span>
           <span className="sm:hidden">Printer Setup</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('receipt')}
-          className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap shrink-0 ${
-            activeTab === 'receipt'
-              ? 'bg-[#0786C5] text-white shadow-sm font-extrabold'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <FileText size={16} />
-          <span className="hidden sm:inline">Receipt Template & Descriptions</span>
-          <span className="sm:hidden">Receipt Template</span>
         </button>
 
         <button
@@ -138,14 +123,7 @@ export const SystemSettingsPage = ({ isOnline, isSyncing, triggerSync }) => {
         </div>
       )}
 
-      {/* Tab 2: Receipt Template & Description Customization */}
-      {activeTab === 'receipt' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <ReceiptSettings />
-        </div>
-      )}
-
-      {/* Tab 3: System Status & Sync Control */}
+      {/* Tab 2: System Status & Sync Control */}
       {activeTab === 'sync' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* Sync Control Actions */}
