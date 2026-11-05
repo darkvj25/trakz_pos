@@ -1,0 +1,15 @@
+{
+	"appId": "com.trakz.pos",
+	"appName": "TRAKZ PRO POS",
+	"webDir": "dist",
+	"server": {
+		"url": "https://trakz-pos.vercel.app",
+		"cleartext": true,
+		"androidScheme": "https"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 1000
+		}
+	}
+}

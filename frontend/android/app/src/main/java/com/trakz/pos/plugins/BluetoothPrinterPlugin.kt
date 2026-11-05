@@ -263,8 +263,8 @@ class BluetoothPrinterPlugin : Plugin() {
                     }
                 }
 
-                // Stream in 512-byte chunks with 25ms delay to prevent BT 2.0 buffer overflow on thermal printers
-                val chunkSize = 512
+                // Stream in 64-byte chunks with 15ms delay to prevent BT 2.0 buffer overflow on mini thermal printers
+                val chunkSize = 64
                 var offset = 0
                 while (offset < bytes.size) {
                     val count = Math.min(chunkSize, bytes.size - offset)
@@ -273,7 +273,7 @@ class BluetoothPrinterPlugin : Plugin() {
                     offset += count
                     if (offset < bytes.size) {
                         try {
-                            Thread.sleep(25)
+                            Thread.sleep(15)
                         } catch (_: InterruptedException) {}
                     }
                 }

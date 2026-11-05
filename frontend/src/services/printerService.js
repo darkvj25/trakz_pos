@@ -26,19 +26,15 @@ const BLE_PRINTER_SERVICES = [
   // Most Common Chinese Thermal Printer BLE Module (HM-10 / CC2541 / POS-58 / PT-210 / MPT-II)
   '0000ffe0-0000-1000-8000-00805f9b34fb',
   '0000ffe1-0000-1000-8000-00805f9b34fb',
-  'ffe0',
-  'ffe1',
   0xffe0,
   0xffe1,
 
   // Standard Bluetooth SIG Thermal Printer Service
   '000018f0-0000-1000-8000-00805f9b34fb',
-  '18f0',
   0x18f0,
 
   // Xprinter / POS58 Custom BLE Service
   '0000e0ff-0000-1000-8000-00805f9b34fb',
-  'e0ff',
   0xe0ff,
 
   // ISSC Transparent Service (Microchip / Rongta / MPT-II)
@@ -47,52 +43,87 @@ const BLE_PRINTER_SERVICES = [
 
   // ZJiang / Milestone / POS-80 Custom Service
   '0000ff00-0000-1000-8000-00805f9b34fb',
-  'ff00',
   0xff00,
 
   // Serial Port Profile (SPP over BLE / GATT)
   '00001101-0000-1000-8000-00805f9b34fb',
-  '1101',
   0x1101,
 
   // Additional POS Thermal BLE Services (Bixolon / Star / Epson / Custom)
   '0000af00-0000-1000-8000-00805f9b34fb',
-  'af00',
   0xaf00,
   '0000ffff-0000-1000-8000-00805f9b34fb',
-  'ffff',
   0xffff,
   '0000f000-0000-1000-8000-00805f9b34fb',
-  'f000',
   0xf000,
   '0000abf0-0000-1000-8000-00805f9b34fb',
-  'abf0',
   0xabf0,
   '0000cc00-0000-1000-8000-00805f9b34fb',
-  'cc00',
   0xcc00,
   '0000ae30-0000-1000-8000-00805f9b34fb',
-  'ae30',
   0xae30,
   '00004953-0000-1000-8000-00805f9b34fb',
-
-  // Generic Access / Device Info fallback services
-  '00001800-0000-1000-8000-00805f9b34fb',
-  '00001801-0000-1000-8000-00805f9b34fb',
-  '0000180a-0000-1000-8000-00805f9b34fb',
-  '1800',
-  '1801',
-  '180a',
-  0x1800,
-  0x1801,
-  0x180a,
 ];
+
+// Standard GATT metadata services & non-printer characteristics to ignore
+const IGNORED_SERVICES = [
+  '00001800-0000-1000-8000-00805f9b34fb', // Generic Access
+  '00001801-0000-1000-8000-00805f9b34fb', // Generic Attribute
+  '0000180a-0000-1000-8000-00805f9b34fb', // Device Info
+  '00001812-0000-1000-8000-00805f9b34fb', // HID
+  0x1800, 0x1801, 0x180a, 0x1812,
+];
+
+const IGNORED_CHARACTERISTICS = [
+  '00002a00-0000-1000-8000-00805f9b34fb', // Device Name
+  '00002a01-0000-1000-8000-00805f9b34fb', // Appearance
+  '00002a04-0000-1000-8000-00805f9b34fb', // Connection Params
+  '00002a29-0000-1000-8000-00805f9b34fb', // Manufacturer Name
+  '00002a24-0000-1000-8000-00805f9b34fb', // Model Number
+  0x2a00, 0x2a01, 0x2a04, 0x2a29, 0x2a24,
+];
+
+const isWritableCharacteristic = (c) => {
+  if (!c) return false;
+  const uuid = (c.uuid || '').toLowerCase();
+  if (IGNORED_CHARACTERISTICS.some((ig) => uuid.includes(String(ig).toLowerCase()))) {
+    return false;
+  }
+  const props = c.properties || {};
+  return !!(props.write || props.writeWithoutResponse || props.authenticatedSignedWrites);
+};
+
+const findPrinterCharacteristicInService = async (service) => {
+  if (!service) return null;
+  const serviceUuid = (service.uuid || '').toLowerCase();
+  if (IGNORED_SERVICES.some((ig) => serviceUuid.includes(String(ig).toLowerCase()))) {
+    return null;
+  }
+  try {
+    const characteristics = await service.getCharacteristics();
+    // Prioritize known thermal printer TX UUIDs (ffe1, 49535343..., 2af1, e0ff, ff01)
+    const preferred = characteristics.find((c) => {
+      const u = (c.uuid || '').toLowerCase();
+      return (
+        (u.includes('ffe1') || u.includes('49535343') || u.includes('2af1') || u.includes('e0ff') || u.includes('ff01')) &&
+        isWritableCharacteristic(c)
+      );
+    });
+    if (preferred) return preferred;
+
+    return characteristics.find((c) => isWritableCharacteristic(c)) || null;
+  } catch (err) {
+    return null;
+  }
+};
 
 class PrinterService {
   constructor() {
+    this.thermalEnabled = true;
     this.connectionType = 'browser'; // 'bluetooth' | 'native' | 'usb' | 'browser'
     this.paperWidth = '80mm'; // '80mm' | '58mm'
-    this.autoPrint = true;
+    this.printMode = 'ask'; // 'auto' | 'ask'
+    this.autoPrint = false;
 
     this.bluetoothDevice = null;
     this.bluetoothCharacteristic = null;
@@ -116,9 +147,16 @@ class PrinterService {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const config = JSON.parse(saved);
+        if (typeof config.thermalEnabled === 'boolean') this.thermalEnabled = config.thermalEnabled;
         if (config.connectionType) this.connectionType = config.connectionType;
         if (config.paperWidth) this.paperWidth = config.paperWidth;
-        if (typeof config.autoPrint === 'boolean') this.autoPrint = config.autoPrint;
+        if (config.printMode) {
+          this.printMode = config.printMode;
+          this.autoPrint = config.printMode === 'auto';
+        } else if (typeof config.autoPrint === 'boolean') {
+          this.autoPrint = config.autoPrint;
+          this.printMode = config.autoPrint ? 'auto' : 'ask';
+        }
         if (config.nativeMacAddress) this.nativeMacAddress = config.nativeMacAddress;
         if (config.nativeDeviceName) this.nativeDeviceName = config.nativeDeviceName;
         if (this.isCapacitorNative() && this.nativeMacAddress) {
@@ -135,9 +173,11 @@ class PrinterService {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
+          thermalEnabled: this.thermalEnabled,
           connectionType: this.connectionType,
           paperWidth: this.paperWidth,
-          autoPrint: this.autoPrint,
+          printMode: this.printMode,
+          autoPrint: this.printMode === 'auto',
           nativeMacAddress: this.nativeMacAddress,
           nativeDeviceName: this.nativeDeviceName,
           deviceName: this.getDeviceName(),
@@ -191,9 +231,11 @@ class PrinterService {
       (this.connectionType === 'usb' && !!this.usbDevice && this.usbDevice.opened);
 
     return {
+      thermalEnabled: this.thermalEnabled,
       connectionType: this.connectionType,
       paperWidth: this.paperWidth,
-      autoPrint: this.autoPrint,
+      printMode: this.printMode,
+      autoPrint: this.printMode === 'auto',
       isNative: this.isCapacitorNative(),
       isConnected,
       deviceName: this.getDeviceName(),
@@ -202,8 +244,21 @@ class PrinterService {
     };
   }
 
+  setThermalEnabled(enabled) {
+    this.thermalEnabled = enabled;
+    this.saveConfig();
+    this.notify();
+  }
+
   setPaperWidth(width) {
     this.paperWidth = width;
+    this.saveConfig();
+    this.notify();
+  }
+
+  setPrintMode(mode) {
+    this.printMode = mode;
+    this.autoPrint = mode === 'auto';
     this.saveConfig();
     this.notify();
   }
@@ -384,11 +439,18 @@ class PrinterService {
             for (const serviceUuid of BLE_PRINTER_SERVICES) {
               try {
                 const service = await server.getPrimaryService(serviceUuid);
-                const characteristics = await service.getCharacteristics();
-                characteristic = characteristics.find(
-                  (c) => c?.properties?.write || c?.properties?.writeWithoutResponse
-                );
+                characteristic = await findPrinterCharacteristicInService(service);
                 if (characteristic) break;
+              } catch (err) {}
+            }
+
+            if (!characteristic) {
+              try {
+                const services = await server.getPrimaryServices();
+                for (const service of services) {
+                  characteristic = await findPrinterCharacteristicInService(service);
+                  if (characteristic) break;
+                }
               } catch (err) {}
             }
 
@@ -453,10 +515,7 @@ class PrinterService {
       for (const serviceUuid of BLE_PRINTER_SERVICES) {
         try {
           const service = await server.getPrimaryService(serviceUuid);
-          const characteristics = await service.getCharacteristics();
-          characteristic = characteristics.find(
-            (c) => c?.properties?.write || c?.properties?.writeWithoutResponse || c?.properties?.authenticatedSignedWrites
-          );
+          characteristic = await findPrinterCharacteristicInService(service);
           if (characteristic) break;
         } catch (err) {}
       }
@@ -465,13 +524,8 @@ class PrinterService {
         try {
           const services = await server.getPrimaryServices();
           for (const service of services) {
-            try {
-              const characteristics = await service.getCharacteristics();
-              characteristic = characteristics.find(
-                (c) => c?.properties?.write || c?.properties?.writeWithoutResponse || c?.properties?.authenticatedSignedWrites
-              );
-              if (characteristic) break;
-            } catch (err) {}
+            characteristic = await findPrinterCharacteristicInService(service);
+            if (characteristic) break;
           }
         } catch (err) {}
       }
@@ -628,20 +682,30 @@ class PrinterService {
       if (!isReady || !this.bluetoothCharacteristic || !this.bluetoothDevice?.gatt?.connected) {
         const reconnected = await this.autoConnect();
         if (!reconnected || !this.bluetoothCharacteristic) {
-          throw new Error('Bluetooth printer is disconnected. Click "Printer Pairing" to re-connect GATT session.');
+          throw new Error('Bluetooth printer is disconnected. Click "Pair Web Bluetooth Device" to re-connect.');
         }
       }
 
-      const chunkSize = 100;
+      const char = this.bluetoothCharacteristic;
+      const props = char.properties || {};
+
+      // Safe BLE MTU payload chunking: 20 bytes per packet (standard BLE ATT_MTU payload limit)
+      const chunkSize = 20;
       for (let i = 0; i < bytes.length; i += chunkSize) {
         const chunk = bytes.slice(i, i + chunkSize);
-        if (this.bluetoothCharacteristic.writeValueWithoutResponse) {
-          await this.bluetoothCharacteristic.writeValueWithoutResponse(chunk);
-          await new Promise((res) => setTimeout(res, 20));
-        } else if (this.bluetoothCharacteristic.writeValue) {
-          await this.bluetoothCharacteristic.writeValue(chunk);
-        } else if (this.bluetoothCharacteristic.writeValueWithResponse) {
-          await this.bluetoothCharacteristic.writeValueWithResponse(chunk);
+
+        if (props.writeWithoutResponse && typeof char.writeValueWithoutResponse === 'function') {
+          await char.writeValueWithoutResponse(chunk);
+          await new Promise((res) => setTimeout(res, 15));
+        } else if (props.write && typeof char.writeValueWithResponse === 'function') {
+          await char.writeValueWithResponse(chunk);
+        } else if (typeof char.writeValue === 'function') {
+          await char.writeValue(chunk);
+        } else if (typeof char.writeValueWithoutResponse === 'function') {
+          await char.writeValueWithoutResponse(chunk);
+          await new Promise((res) => setTimeout(res, 15));
+        } else {
+          throw new Error('Selected GATT characteristic does not support write operations.');
         }
       }
       return true;

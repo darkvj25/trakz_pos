@@ -40,3 +40,10 @@ backend/prisma/*.db-journal
 # Vite
 .vite/
 .neon
+
+# Android
+.gradle/
+local.properties
+**/android/.gradle/
+**/android/local.properties
+

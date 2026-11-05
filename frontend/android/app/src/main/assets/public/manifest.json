@@ -1,0 +1,16 @@
+{
+  "short_name": "TRAKZ POS",
+  "name": "TRAKZ PRO POS Terminal",
+  "icons": [
+    {
+      "src": "/images/trackz_logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#090d16",
+  "theme_color": "#0786C5",
+  "display": "standalone",
+  "orientation": "any"
+}

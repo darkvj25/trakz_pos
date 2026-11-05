@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { printerService } from '../../services/printerService';
-import { Printer, Bluetooth, Usb, CheckCircle2, AlertTriangle, RefreshCw, XCircle, FileText, Smartphone, Settings, ExternalLink } from 'lucide-react';
+import { Bluetooth, Usb, RefreshCw, Printer, CheckCircle2, FileText, Sliders } from 'lucide-react';
 import { NotificationToast } from '../common/NotificationToast';
+import { ReceiptSettings } from './ReceiptSettings';
 
 export const PrinterSettings = () => {
+  const [activeTab, setActiveTab] = useState('config'); // 'config' | 'modify'
   const [status, setStatus] = useState(printerService.getStatus());
   const [loading, setLoading] = useState(false);
   const [nativeDevices, setNativeDevices] = useState([]);
@@ -28,12 +30,16 @@ export const PrinterSettings = () => {
     }
   };
 
-  const handleOpenBluetoothSettings = async () => {
-    try {
-      await printerService.openNativeBluetoothSettings();
-    } catch (e) {
-      setToast({ message: 'Could not open Android Bluetooth Settings automatically.', type: 'error' });
-    }
+  const handleToggleThermalEnabled = (e) => {
+    printerService.setThermalEnabled(e.target.checked);
+  };
+
+  const handlePaperSizeChange = (width) => {
+    printerService.setPaperWidth(width);
+  };
+
+  const handlePrintModeChange = (mode) => {
+    printerService.setPrintMode(mode);
   };
 
   const handlePairBluetooth = async () => {
@@ -41,13 +47,33 @@ export const PrinterSettings = () => {
     try {
       const res = await printerService.pairBluetooth();
       setToast({
-        message: `Successfully connected Bluetooth printer: ${res.deviceName}`,
+        message: `Connected Bluetooth Printer: ${res.deviceName}`,
         type: 'success',
       });
     } catch (err) {
-      if (err.name !== 'NotFoundError') {
+      if (err.name !== 'NotFoundError' && err.name !== 'AbortError') {
         setToast({
-          message: err.message || 'Failed to connect Bluetooth printer.',
+          message: err.message || 'Bluetooth pairing failed.',
+          type: 'error',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePairUsb = async () => {
+    setLoading(true);
+    try {
+      const res = await printerService.pairUsb();
+      setToast({
+        message: `Paired Web USB Printer: ${res.deviceName}`,
+        type: 'success',
+      });
+    } catch (err) {
+      if (err.name !== 'NotFoundError' && err.name !== 'AbortError') {
+        setToast({
+          message: err.message || 'USB pairing failed.',
           type: 'error',
         });
       }
@@ -61,34 +87,14 @@ export const PrinterSettings = () => {
     try {
       const res = await printerService.pairNativeBluetooth(device.address, device.name);
       setToast({
-        message: `Connected via BT 2.0 Classic Native socket to ${res.deviceName}`,
+        message: `Connected SPP to ${res.deviceName}`,
         type: 'success',
       });
     } catch (err) {
       setToast({
-        message: err.message || 'Failed to connect Bluetooth 2.0 Classic device.',
+        message: err.message || 'Native Bluetooth connection failed.',
         type: 'error',
       });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePairUsb = async () => {
-    setLoading(true);
-    try {
-      const res = await printerService.pairUsb();
-      setToast({
-        message: `Successfully paired Web USB printer: ${res.deviceName}`,
-        type: 'success',
-      });
-    } catch (err) {
-      if (err.name !== 'NotFoundError') {
-        setToast({
-          message: err.message || 'Failed to pair Web USB printer.',
-          type: 'error',
-        });
-      }
     } finally {
       setLoading(false);
     }
@@ -110,7 +116,7 @@ export const PrinterSettings = () => {
     setLoading(true);
     try {
       await printerService.printTestReceipt();
-      setToast({ message: 'Test ESC/POS receipt sent to printer!', type: 'success' });
+      setToast({ message: 'Test ESC/POS receipt sent!', type: 'success' });
     } catch (err) {
       setToast({ message: `Print failed: ${err.message}`, type: 'error' });
     } finally {
@@ -119,307 +125,231 @@ export const PrinterSettings = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-6">
-      {/* Header */}
+    <div className="w-full bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-6">
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-[#0786C5]">
+          <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-[#0786C5] shrink-0">
             <Printer size={22} />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              Thermal POS Printer & ESC/POS Setup
-              {status.isNative ? (
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                  ANDROID NATIVE (BT 2.0 CLASSIC & BLE)
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  WEB BROWSER MODE
-                </span>
-              )}
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              Printer Configuration & Hardware Setup
             </h3>
             <p className="text-xs text-slate-500 font-medium">
-              Configure Bluetooth 2.0 Classic / BLE, Web USB, or Browser printing formats for receipts.
+              Configure Web Bluetooth, Web USB, or Android Native thermal printers and receipt formats.
             </p>
           </div>
         </div>
 
-        {/* Current Connection Badge */}
-        <div className="flex items-center gap-2">
-          {status.connectionType === 'browser' ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              <FileText size={14} />
-              Browser Window Print
-            </span>
-          ) : status.isConnected ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-              <CheckCircle2 size={14} />
-              Connected ({status.deviceName || status.connectionType.toUpperCase()})
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-              <AlertTriangle size={14} />
-              Not Paired / Offline
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Connection Type Selection Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Bluetooth Mode */}
-        <div
-          onClick={() => printerService.setConnectionType(status.isNative ? 'native' : 'bluetooth')}
-          className={`relative p-4 rounded-xl border cursor-pointer transition-all ${
-            status.connectionType === 'bluetooth' || status.connectionType === 'native'
-              ? 'border-[#0786C5] bg-sky-50/50 dark:bg-sky-950/30 ring-2 ring-[#0786C5]/20'
-              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
-              <Bluetooth className="text-blue-500" size={18} />
-              Bluetooth (ESC/POS)
-            </div>
-            {(status.connectionType === 'bluetooth' || status.connectionType === 'native') && (
-              <span className="w-2.5 h-2.5 rounded-full bg-[#0786C5]"></span>
-            )}
-          </div>
-          <p className="text-xs text-slate-500">
-            {status.isNative
-              ? 'Native Bluetooth 2.0 Classic (SPP/RFCOMM) & BLE thermal printer connection.'
-              : 'Wireless thermal receipt printing via Web Bluetooth API (BLE 5.0).'}
-          </p>
-          {!status.isBluetoothSupported && !status.isNative && (
-            <p className="mt-2 text-[11px] text-rose-500 font-semibold flex items-center gap-1">
-              <XCircle size={12} /> Web Bluetooth not available on current browser.
-            </p>
-          )}
-        </div>
-
-        {/* Web USB Mode */}
-        <div
-          onClick={() => printerService.setConnectionType('usb')}
-          className={`relative p-4 rounded-xl border cursor-pointer transition-all ${
-            status.connectionType === 'usb'
-              ? 'border-[#0786C5] bg-sky-50/50 dark:bg-sky-950/30 ring-2 ring-[#0786C5]/20'
-              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
-              <Usb className="text-emerald-500" size={18} />
-              Web USB (ESC/POS)
-            </div>
-            {status.connectionType === 'usb' && (
-              <span className="w-2.5 h-2.5 rounded-full bg-[#0786C5]"></span>
-            )}
-          </div>
-          <p className="text-xs text-slate-500">
-            Direct cable USB thermal printing using Chrome WebUSB driverless interface.
-          </p>
-          <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-            Note: If Windows driver is installed, use "Browser Standard" instead.
-          </p>
-          {!status.isUsbSupported && (
-            <p className="mt-2 text-[11px] text-rose-500 font-semibold flex items-center gap-1">
-              <XCircle size={12} /> Web USB not available on current browser.
-            </p>
-          )}
-        </div>
-
-        {/* Standard Browser Print Mode */}
-        <div
-          onClick={() => printerService.setConnectionType('browser')}
-          className={`relative p-4 rounded-xl border cursor-pointer transition-all ${
-            status.connectionType === 'browser'
-              ? 'border-[#0786C5] bg-sky-50/50 dark:bg-sky-950/30 ring-2 ring-[#0786C5]/20'
-              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
-              <FileText className="text-purple-500" size={18} />
-              Browser Standard
-            </div>
-            {status.connectionType === 'browser' && (
-              <span className="w-2.5 h-2.5 rounded-full bg-[#0786C5]"></span>
-            )}
-          </div>
-          <p className="text-xs text-slate-500">
-            Standard system print window preview fallback for any installed desktop printer.
-          </p>
-        </div>
-      </div>
-
-      {/* Bluetooth 2.0 Classic Guidance Banner for Web Browser users */}
-      {!status.isNative && (
-        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-          <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
-            <Bluetooth size={16} className="text-amber-600 shrink-0" />
-            Bluetooth 2.0 Classic vs Web Bluetooth Note:
-          </div>
-          <p className="text-[11px] leading-relaxed">
-            Web Bluetooth API in Chrome only supports <strong>Bluetooth 5.0 / BLE (Bluetooth Low Energy)</strong>.
-            Thermal receipt printers that use <strong>Bluetooth 2.0 Classic (SPP/RFCOMM)</strong> (e.g. POS-58, POS-80, PT-210) require the <strong>TrakZ POS Native Android App</strong> to connect.
-          </p>
-        </div>
-      )}
-
-      {/* Native Paired Devices List for Android Native (BT 2.0 Classic & BLE) */}
-      {status.isNative && (
-        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-              <Smartphone size={16} className="text-blue-500" />
-              Bonded Android Bluetooth 2.0 / Classic Printers
-            </h4>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleOpenBluetoothSettings}
-                className="text-xs font-bold text-[#0786C5] hover:underline flex items-center gap-1"
-              >
-                <Settings size={12} /> Android Bluetooth Settings
-              </button>
-              <button
-                onClick={loadNativeDevices}
-                className="text-xs font-semibold text-[#0786C5] hover:underline flex items-center gap-1"
-              >
-                <RefreshCw size={12} /> Refresh
-              </button>
-            </div>
-          </div>
-
-          {nativeDevices.length === 0 ? (
-            <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 space-y-2">
-              <p className="italic">
-                No paired Bluetooth devices found on this Android device.
-              </p>
-              <p className="text-[11px]">
-                To connect a Bluetooth 2.0 Classic printer (e.g. POS-58 / POS-80 / PT-210), pair it in Android Bluetooth Settings first, then tap <strong>Refresh</strong> above.
-              </p>
-              <button
-                onClick={handleOpenBluetoothSettings}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0786C5] hover:bg-sky-600 transition-colors"
-              >
-                <ExternalLink size={12} /> Open Android Bluetooth Settings
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {nativeDevices.map((dev) => {
-                const isSelected = status.deviceName?.includes(dev.name) || status.deviceName?.includes(dev.address);
-                return (
-                  <div
-                    key={dev.address}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-all text-xs ${
-                      isSelected
-                        ? 'border-[#0786C5] bg-sky-50/60 dark:bg-sky-950/40 ring-1 ring-[#0786C5]'
-                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
-                    }`}
-                  >
-                    <div>
-                      <p className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                        {dev.name}
-                        {isSelected && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />}
-                      </p>
-                      <p className="text-[10px] text-slate-400 font-mono">{dev.address}</p>
-                    </div>
-                    <button
-                      onClick={() => handlePairNativeDevice(dev)}
-                      disabled={loading}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold text-white transition-colors ${
-                        isSelected
-                          ? 'bg-emerald-600 hover:bg-emerald-700'
-                          : 'bg-[#0786C5] hover:bg-sky-600'
-                      }`}
-                    >
-                      {isSelected ? 'Connected' : 'Connect SPP'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Options: Paper Size & Action Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-        {/* Paper Size selector */}
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-            Receipt Paper Size:
-          </label>
-          <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold">
-            <button
-              onClick={() => printerService.setPaperWidth('80mm')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                status.paperWidth === '80mm'
-                  ? 'bg-white dark:bg-slate-900 text-[#0786C5] shadow-sm font-bold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
-            >
-              80mm (Standard POS)
-            </button>
-            <button
-              onClick={() => printerService.setPaperWidth('58mm')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                status.paperWidth === '58mm'
-                  ? 'bg-white dark:bg-slate-900 text-[#0786C5] shadow-sm font-bold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
-            >
-              58mm (Mobile Mini)
-            </button>
-          </div>
-        </div>
-
-        {/* Pairing / Action buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          {(status.connectionType === 'bluetooth' || status.connectionType === 'native') && !status.isNative && (
-            <button
-              onClick={handlePairBluetooth}
-              disabled={loading || !status.isBluetoothSupported}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors disabled:opacity-50"
-            >
-              {loading ? <RefreshCw size={14} className="animate-spin" /> : <Bluetooth size={14} />}
-              Pair Web Bluetooth Device
-            </button>
-          )}
-
-          {status.connectionType === 'usb' && (
-            <button
-              onClick={handlePairUsb}
-              disabled={loading || !status.isUsbSupported}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors disabled:opacity-50"
-            >
-              {loading ? <RefreshCw size={14} className="animate-spin" /> : <Usb size={14} />}
-              Pair Web USB Printer
-            </button>
-          )}
-
-          {status.isConnected && (
-            <button
-              onClick={handleDisconnect}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300 dark:border dark:border-rose-800 transition-colors"
-            >
-              Disconnect
-            </button>
-          )}
-
+        {/* Sub-tabs: Config | Modify */}
+        <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-semibold self-start sm:self-auto">
           <button
-            onClick={handleTestPrint}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+            onClick={() => setActiveTab('config')}
+            className={`px-4 py-2 rounded-lg transition-all ${
+              activeTab === 'config'
+                ? 'bg-white dark:bg-slate-900 text-[#0786C5] dark:text-sky-400 shadow-sm font-extrabold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
           >
-            <Printer size={14} />
-            Test Print ESC/POS
+            Config
+          </button>
+          <button
+            onClick={() => setActiveTab('modify')}
+            className={`px-4 py-2 rounded-lg transition-all ${
+              activeTab === 'modify'
+                ? 'bg-white dark:bg-slate-900 text-[#0786C5] dark:text-sky-400 shadow-sm font-extrabold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Modify
           </button>
         </div>
       </div>
+
+      {activeTab === 'modify' ? (
+        <ReceiptSettings />
+      ) : (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          {/* Row 1: Enable Thermal Printing Toggle */}
+          <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between">
+            <div>
+              <span className="text-sm font-extrabold text-slate-900 dark:text-white block">
+                Enable Thermal Printing
+              </span>
+              <span className="text-xs text-slate-500 font-medium">
+                Enable binary ESC/POS hardware receipt printing for order checkout.
+              </span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
+              <input
+                type="checkbox"
+                checked={!!status.thermalEnabled}
+                onChange={handleToggleThermalEnabled}
+                className="sr-only peer"
+              />
+              <div className="w-12 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00a1e9]"></div>
+            </label>
+          </div>
+
+          {/* Row 2: Grid for Paper Size & Print Mode */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Paper Size */}
+            <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-2">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                Paper Size
+              </label>
+              <div className="p-1 bg-slate-200/80 dark:bg-slate-800 rounded-xl flex items-center">
+                <button
+                  type="button"
+                  onClick={() => handlePaperSizeChange('58mm')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all text-center ${
+                    status.paperWidth === '58mm'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  58mm (Mobile Mini)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePaperSizeChange('80mm')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all text-center ${
+                    status.paperWidth === '80mm'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  80mm (Standard POS)
+                </button>
+              </div>
+            </div>
+
+            {/* Print Mode */}
+            <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-2">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                Print Mode
+              </label>
+              <div className="p-1 bg-slate-200/80 dark:bg-slate-800 rounded-xl flex items-center">
+                <button
+                  type="button"
+                  onClick={() => handlePrintModeChange('auto')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all text-center ${
+                    status.printMode === 'auto'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Automatic Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrintModeChange('ask')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-extrabold transition-all text-center ${
+                    status.printMode === 'ask' || !status.printMode
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Ask to Print
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Status Display Card */}
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
+              Hardware Status
+            </span>
+            {status.isConnected ? (
+              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                <CheckCircle2 size={16} />
+                Connected ({status.deviceName || 'Thermal Printer'})
+              </span>
+            ) : (
+              <span className="text-xs font-black text-rose-500 dark:text-rose-400">
+                Not Connected
+              </span>
+            )}
+          </div>
+
+          {/* Android Native Paired Devices if in Capacitor Native App */}
+          {status.isNative && nativeDevices.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Paired Android Bluetooth Devices:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {nativeDevices.map((dev) => (
+                  <button
+                    key={dev.address}
+                    onClick={() => handlePairNativeDevice(dev)}
+                    className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 text-xs text-left transition-colors"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-800 dark:text-slate-200">{dev.name}</p>
+                      <p className="text-[10px] text-slate-400 font-mono">{dev.address}</p>
+                    </div>
+                    <span className="px-3 py-1 rounded-lg bg-[#0786C5] text-white font-extrabold text-[11px]">
+                      Connect
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Row 4: Pairing Action Buttons Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+            {/* Connect USB Printer */}
+            <button
+              type="button"
+              onClick={handlePairUsb}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs text-white bg-[#00a1e9] hover:bg-[#008fcb] shadow-sm transition-all disabled:opacity-50"
+            >
+              {loading ? <RefreshCw size={16} className="animate-spin" /> : <Usb size={16} />}
+              Connect USB Printer
+            </button>
+
+            {/* Connect Bluetooth Printer */}
+            <button
+              type="button"
+              onClick={handlePairBluetooth}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs text-white bg-[#2563eb] hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50"
+            >
+              {loading ? <RefreshCw size={16} className="animate-spin" /> : <Bluetooth size={16} />}
+              Connect Bluetooth Printer
+            </button>
+          </div>
+
+          {/* Connected Action Options: Disconnect & Test Print */}
+          {status.isConnected && (
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={handleTestPrint}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+              >
+                <Printer size={15} />
+                Test Print ESC/POS
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDisconnect}
+                disabled={loading}
+                className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-300 dark:hover:bg-rose-900 transition-colors"
+              >
+                Disconnect
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {toast && <NotificationToast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

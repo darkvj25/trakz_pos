@@ -7,10 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "cap:add": "cap add android",
-    "cap:sync": "cap sync",
-    "cap:open": "cap open android",
-    "cap:build": "vite build && cap sync"
+    "cap:add": "npx @capacitor/cli add android",
+    "cap:sync": "npx @capacitor/cli sync",
+    "cap:open": "npx @capacitor/cli open android",
+    "cap:build": "vite build && npx @capacitor/cli sync"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.0",
