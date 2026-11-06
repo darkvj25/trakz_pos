@@ -18,6 +18,7 @@ export const ThermalReceipt = ({ order }) => {
   const subtotal = parseFloat(order.subtotal || totalAmount);
   const deliveryFee = parseFloat(order.deliveryFee || 0);
   const convenienceFee = parseFloat(order.convenienceFee || 0);
+  const riderTip = parseFloat(order.riderTip || 0);
   const discount = parseFloat(order.discount || 0);
 
   // Philippine BIR 12% VAT calculation math
@@ -127,6 +128,14 @@ export const ThermalReceipt = ({ order }) => {
             <div className="flex justify-between">
               <span className="uppercase">1 CONVENIENCE FEE</span>
               <span>{convenienceFee.toFixed(2)}V</span>
+            </div>
+          )}
+
+          {/* Rider's Tip line if present */}
+          {riderTip > 0 && (
+            <div className="flex justify-between">
+              <span className="uppercase">1 RIDER'S TIP</span>
+              <span>{riderTip.toFixed(2)}V</span>
             </div>
           )}
 

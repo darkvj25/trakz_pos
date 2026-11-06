@@ -20,4 +20,9 @@ export const orderService = {
     const res = await api.get('/orders/export', { params });
     return res.data.data;
   },
+
+  createOrder: async (orderData) => {
+    const res = await api.post('/orders', orderData);
+    return res.data.data;
+  },
 };

@@ -120,6 +120,7 @@ model Order {
   deliveryDistance Decimal?      @map("delivery_distance") @db.Decimal(6, 2)
   riderPayout      Decimal       @default(0.00) @map("rider_payout") @db.Decimal(12, 2)
   trakzMargin      Decimal       @default(0.00) @map("trakz_margin") @db.Decimal(12, 2)
+  riderTip         Decimal       @default(0.00) @map("rider_tip") @db.Decimal(12, 2)
   convenienceFee   Decimal       @default(0.00) @map("convenience_fee") @db.Decimal(12, 2)
   discount         Decimal       @default(0.00) @db.Decimal(12, 2)
   totalAmount     Decimal       @map("total_amount") @db.Decimal(12, 2)

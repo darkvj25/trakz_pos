@@ -125,6 +125,8 @@ class PaymentService {
             ...payment.order,
             subtotal: parseFloat(payment.order.subtotal),
             deliveryFee: parseFloat(payment.order.deliveryFee),
+            convenienceFee: parseFloat(payment.order.convenienceFee || 0),
+            riderTip: parseFloat(payment.order.riderTip || 0),
             discount: parseFloat(payment.order.discount),
             totalAmount: parseFloat(payment.order.totalAmount),
           }

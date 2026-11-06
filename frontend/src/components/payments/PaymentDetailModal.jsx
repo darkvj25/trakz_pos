@@ -23,6 +23,7 @@ export const PaymentDetailModal = ({ isOpen, onClose, payment }) => {
         subtotal: payment.amount,
         orderDate: payment.paymentDate,
         merchant: payment.merchant,
+        riderTip: payment.riderTip || 0,
       };
       const res = await printerService.printOrder(targetOrder);
       if (res.type !== 'browser') {
@@ -65,6 +66,9 @@ export const PaymentDetailModal = ({ isOpen, onClose, payment }) => {
               <p><strong>Method:</strong> {payment.paymentMethod}</p>
               <p><strong>Reference No:</strong> <span className="font-mono font-bold">{payment.referenceNumber}</span></p>
               <p><strong>Payment Date:</strong> {formatDate(payment.paymentDate)}</p>
+              {parseFloat(payment.order?.riderTip || payment.riderTip || 0) > 0 && (
+                <p><strong>Rider's Tip:</strong> <span className="font-bold text-[#0786C5]">{formatPHP(payment.order?.riderTip || payment.riderTip)}</span></p>
+              )}
             </div>
 
             <div className="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-2">

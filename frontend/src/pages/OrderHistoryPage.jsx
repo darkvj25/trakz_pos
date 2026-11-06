@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { orderService } from '../services/orderService';
-import { getCachedOrders } from '../database/db';
+import { getCachedOrders, saveOrdersToCache } from '../database/db';
 import { OrderFilterBar } from '../components/orders/OrderFilterBar';
 import { OrderTable } from '../components/orders/OrderTable';
 import { OrderDetailModal } from '../components/orders/OrderDetailModal';
+import { CreateOrderModal } from '../components/orders/CreateOrderModal';
 import { Pagination } from '../components/common/Pagination';
 import { exportToCSV } from '../utils/export';
 import { NotificationToast } from '../components/common/NotificationToast';
@@ -22,9 +23,10 @@ export const OrderHistoryPage = ({ isOnline }) => {
   const [sortBy, setSortBy] = useState('orderDate');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Selected Order Modal
+  // Selected Order & Create Order Modals
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const fetchOrders = useCallback(async (page = 1) => {
@@ -101,6 +103,44 @@ export const OrderHistoryPage = ({ isOnline }) => {
     setIsModalOpen(true);
   };
 
+  const handleCreateOrder = async (orderData) => {
+    try {
+      let created;
+      if (isOnline) {
+        created = await orderService.createOrder(orderData);
+      } else {
+        // Fallback local creation if offline
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        const externalOrderId = `POS-OFFLINE-${randomNum}`;
+        const subtotal = orderData.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+        created = {
+          id: `offline-${Date.now()}`,
+          externalOrderId,
+          customerName: orderData.customerName,
+          orderDate: new Date().toISOString(),
+          subtotal,
+          deliveryFee: 50,
+          convenienceFee: 7.5,
+          riderTip: orderData.riderTip || 0,
+          discount: orderData.discount || 0,
+          totalAmount: subtotal + 50 + 7.5 + (orderData.riderTip || 0) - (orderData.discount || 0),
+          paymentStatus: 'PAID',
+          orderStatus: 'DELIVERED',
+          paymentMethod: orderData.paymentMethod,
+          merchant: { merchantName: 'TRAKZ Central Hardware & Supply', externalMerchantId: 'MERCH-001' },
+          orderItems: orderData.items,
+        };
+        await saveOrdersToCache([created]);
+      }
+      setToast({ message: `Transaction ${created.externalOrderId} created successfully!`, type: 'success' });
+      await fetchOrders(1);
+      setSelectedOrder(created);
+      setIsModalOpen(true);
+    } catch (err) {
+      setToast({ message: `Failed to create transaction: ${err.message}`, type: 'error' });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <OrderFilterBar
@@ -116,6 +156,7 @@ export const OrderHistoryPage = ({ isOnline }) => {
         setEndDate={setEndDate}
         onRefresh={() => fetchOrders(pagination.page)}
         onExportCSV={handleExportCSV}
+        onCreateNew={() => setIsCreateModalOpen(true)}
       />
 
       <OrderTable
@@ -138,6 +179,12 @@ export const OrderHistoryPage = ({ isOnline }) => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         order={selectedOrder}
+      />
+
+      <CreateOrderModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreateOrder={handleCreateOrder}
       />
 
       {toast && (

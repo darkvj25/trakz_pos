@@ -195,6 +195,12 @@ export const OrderDetailModal = ({ isOpen, onClose, order }) => {
                       <span className="font-semibold">{formatPHP(order.convenienceFee)}</span>
                     </div>
                   )}
+                  {parseFloat(order.riderTip || 0) > 0 && (
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Rider's Tip:</span>
+                      <span className="font-semibold">{formatPHP(order.riderTip)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-rose-600 dark:text-rose-400">
                     <span>Discount:</span>
                     <span className="font-semibold">-{formatPHP(order.discount)}</span>

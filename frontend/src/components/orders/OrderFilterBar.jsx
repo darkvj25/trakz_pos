@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, RefreshCw, Download } from 'lucide-react';
+import { Search, RefreshCw, Download, PlusCircle } from 'lucide-react';
 
 export const OrderFilterBar = ({
   search,
@@ -14,6 +14,7 @@ export const OrderFilterBar = ({
   setEndDate,
   onRefresh,
   onExportCSV,
+  onCreateNew,
 }) => {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
@@ -32,6 +33,15 @@ export const OrderFilterBar = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
+          {onCreateNew && (
+            <button
+              onClick={onCreateNew}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-[#0786C5] hover:bg-sky-600 shadow-sm transition-colors"
+            >
+              <PlusCircle size={15} />
+              New Transaction
+            </button>
+          )}
           <button
             onClick={onRefresh}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
@@ -41,7 +51,7 @@ export const OrderFilterBar = ({
           </button>
           <button
             onClick={onExportCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white bg-[#0786C5] hover:bg-sky-600 shadow-sm transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
           >
             <Download size={14} />
             Export CSV

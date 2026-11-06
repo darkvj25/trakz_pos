@@ -61,6 +61,8 @@ class TrakzIntegrationAdapter {
       financials: {
         subtotal: parseFloat(posOrderPayload.subtotal || 0),
         delivery_fee: parseFloat(posOrderPayload.deliveryFee || 0),
+        convenience_fee: parseFloat(posOrderPayload.convenienceFee || 0),
+        rider_tip: parseFloat(posOrderPayload.riderTip || 0),
         discount: parseFloat(posOrderPayload.discount || 0),
         total_amount: parseFloat(posOrderPayload.totalAmount || 0),
         currency: 'PHP',

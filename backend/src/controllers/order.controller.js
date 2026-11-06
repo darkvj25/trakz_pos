@@ -33,6 +33,19 @@ class OrderController {
     }
   }
 
+  async createOrder(req, res, next) {
+    try {
+      const orderData = { ...req.body };
+      if (req.user && req.user.merchantId && !orderData.merchantId) {
+        orderData.merchantId = req.user.merchantId;
+      }
+      const newOrder = await orderService.createOrder(orderData);
+      return sendSuccess(res, 'New order/transaction created successfully', newOrder, 201);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async exportOrders(req, res, next) {
     try {
       const orders = await orderService.exportOrders(req.query);

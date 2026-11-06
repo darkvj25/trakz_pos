@@ -125,13 +125,14 @@ function getConvenienceFeeDetails(subtotalAmount) {
 }
 
 /**
- * Calculates full order totals including subtotal, delivery fee, convenience fee, and discounts.
+ * Calculates full order totals including subtotal, delivery fee, convenience fee, rider tip, and discounts.
  * @param {number} subtotal - Cart subtotal (₱)
  * @param {number} distanceInKm - Delivery distance in km
  * @param {number} discount - Applied discount amount (₱)
+ * @param {number} riderTip - Optional Rider's Tip amount (₱)
  * @returns {object} - Comprehensive fee breakdown
  */
-function calculateOrderTotalDetails(subtotal = 0, distanceInKm = 0, discount = 0) {
+function calculateOrderTotalDetails(subtotal = 0, distanceInKm = 0, discount = 0, riderTip = 0) {
   const riderFeeDetails = getRiderFeeDetails(distanceInKm);
   const convenienceFeeDetails = getConvenienceFeeDetails(subtotal);
 
@@ -139,13 +140,15 @@ function calculateOrderTotalDetails(subtotal = 0, distanceInKm = 0, discount = 0
   const convenienceFee = convenienceFeeDetails ? convenienceFeeDetails.convenienceFee : 0;
   const parsedSubtotal = Math.max(0, parseFloat(subtotal) || 0);
   const parsedDiscount = Math.max(0, parseFloat(discount) || 0);
+  const parsedRiderTip = Math.max(0, parseFloat(riderTip) || 0);
 
-  const totalAmount = Math.max(0, parsedSubtotal + deliveryFee + convenienceFee - parsedDiscount);
+  const totalAmount = Math.max(0, parsedSubtotal + deliveryFee + convenienceFee + parsedRiderTip - parsedDiscount);
 
   return {
     subtotal: parsedSubtotal,
     deliveryFee,
     convenienceFee,
+    riderTip: parsedRiderTip,
     discount: parsedDiscount,
     totalAmount,
     riderFeeDetails,

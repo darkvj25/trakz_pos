@@ -234,9 +234,10 @@ async function main() {
     };
     const convenienceDetails = getConvenienceFeeDetails(itemData.subtotal);
     const convenienceFee = convenienceDetails ? convenienceDetails.convenienceFee : 0;
+    const riderTip = itemData.riderTip || (i === 0 ? 50.00 : i === 1 ? 20.00 : 0.00);
 
     const customerFee = feeBreakdown.customerFee;
-    const totalAmount = itemData.subtotal + customerFee + convenienceFee - itemData.discount;
+    const totalAmount = itemData.subtotal + customerFee + convenienceFee + riderTip - itemData.discount;
 
     const createdOrder = await prisma.order.create({
       data: {
@@ -248,6 +249,7 @@ async function main() {
         deliveryDistance: itemData.deliveryDistance,
         deliveryFee: customerFee,
         convenienceFee: convenienceFee,
+        riderTip: riderTip,
         riderPayout: feeBreakdown.riderPayout,
         trakzMargin: feeBreakdown.trakzMargin,
         discount: itemData.discount,

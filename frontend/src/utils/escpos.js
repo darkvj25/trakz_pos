@@ -147,6 +147,7 @@ export const generateReceiptEscPosBytes = (order, options = {}) => {
   const subtotal = parseFloat(order.subtotal || totalAmount);
   const deliveryFee = parseFloat(order.deliveryFee || 0);
   const convenienceFee = parseFloat(order.convenienceFee || 0);
+  const riderTip = parseFloat(order.riderTip || 0);
   const discount = parseFloat(order.discount || 0);
 
   const vatableSales = totalAmount > 0 ? (totalAmount / 1.12).toFixed(2) : '0.00';
@@ -248,6 +249,10 @@ export const generateReceiptEscPosBytes = (order, options = {}) => {
 
   if (convenienceFee > 0) {
     builder.line(formatTwoColumn('1 CONVENIENCE FEE', `${convenienceFee.toFixed(2)}V`, width));
+  }
+
+  if (riderTip > 0) {
+    builder.line(formatTwoColumn('1 RIDER\'S TIP', `${riderTip.toFixed(2)}V`, width));
   }
 
   if (discount > 0) {
